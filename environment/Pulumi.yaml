@@ -1,0 +1,3 @@
+name: aws-golang
+runtime: go
+description: A minimal AWS Go Pulumi program
