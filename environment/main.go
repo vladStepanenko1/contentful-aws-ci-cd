@@ -8,7 +8,23 @@ import (
 func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
 		// Create an AWS resource (S3 Bucket)
-		bucket, err := s3.NewBucket(ctx, "my-bucket", nil)
+		bucketResourceName := "contentful-app-bucket"
+		bucket, err := s3.NewBucket(ctx, bucketResourceName, &s3.BucketArgs{
+			Acl:    pulumi.String("private"),
+			Bucket: pulumi.String(bucketResourceName),
+		})
+		if err != nil {
+			return err
+		}
+
+		// Bucket public access block
+		_, err = s3.NewBucketPublicAccessBlock(ctx, "bucket-block-public-access", &s3.BucketPublicAccessBlockArgs{
+			Bucket:                pulumi.String(bucketResourceName),
+			BlockPublicAcls:       pulumi.Bool(true),
+			BlockPublicPolicy:     pulumi.Bool(true),
+			IgnorePublicAcls:      pulumi.Bool(true),
+			RestrictPublicBuckets: pulumi.Bool(true),
+		})
 		if err != nil {
 			return err
 		}
