@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/pulumi/pulumi-aws/sdk/v4/go/aws/cloudfront"
 	"github.com/pulumi/pulumi-aws/sdk/v4/go/aws/s3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -84,6 +87,23 @@ func main() {
 			return err
 		}
 
+		// Create bucket policy which provides access to bucket objects via CloudFront
+		bucketPolicyName := "PolicyForCloudFrontPrivateContent"
+
+		_, err = s3.NewBucketPolicy(ctx, bucketPolicyName, &s3.BucketPolicyArgs{
+			Bucket: bucket.ID(),
+			Policy: pulumi.All(bucket.Arn, originAccessIdentity.ID().ToStringOutput()).ApplyT(func(args []interface{}) (string, error) {
+				bucketPolicyJson, err := PublicReadPolicyForBucket(bucketPolicyName, args[0].(string), args[1].(string))
+				if err != nil {
+					return "", err
+				}
+				return string(bucketPolicyJson), nil
+			}).(pulumi.StringOutput),
+		})
+		if err != nil {
+			return err
+		}
+
 		// Export the name of the bucket
 		ctx.Export("bucketName", bucket.ID())
 
@@ -94,4 +114,26 @@ func main() {
 		ctx.Export("cloudFrontDistributionDomainName", cloudFrontDistribution.DomainName)
 		return nil
 	})
+}
+
+func PublicReadPolicyForBucket(bucketPolicyName string, bucketArn string, originAccessIdentityId string) ([]byte, error) {
+	jsonToReturn, err := json.Marshal(map[string]interface{}{
+		"Version": "2012-10-17",
+		"Id":      bucketPolicyName,
+		"Statement": []map[string]interface{}{
+			{
+				"Effect": "Allow",
+				"Principal": map[string]interface{}{
+					"AWS": fmt.Sprintf("arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity %s", originAccessIdentityId),
+				},
+				"Action":   "s3:GetObject",
+				"Resource": fmt.Sprintf("%s/*", bucketArn),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(string(jsonToReturn))
+	return jsonToReturn, nil
 }
