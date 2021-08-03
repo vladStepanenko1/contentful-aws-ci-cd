@@ -8,30 +8,31 @@ import SiteMetadata from "../components/SiteMetadata"
 
 const IndexPage = ({ data }) => {
   return (
-    <Layout>
-      <SiteMetadata title="Home" description="Portfolio of John Doe" />
-
-      <Hero />
-
-      <div className="bg-gray-100 py-12 lg:py-16">
-        {data.portfolio && data.portfolio.nodes.length > 0 ? (
-          <Cards items={data.portfolio.nodes} />
-        ) : (
-          <div className="container">No projects found.</div>
-        )}
-      </div>
-      <Newsletter />
-    </Layout>
+    <div>
+      {console.log(data)}
+      {data.posts.nodes.map(post =>(
+        <div key={post.id}>
+          <p>{post.title}</p>
+          <img src={post.image.file.url}/>
+        </div>
+      ))}
+    </div>
   )
 }
 
 export default IndexPage
 
 export const query = graphql`
-  query HomeQuery {
-    portfolio: allContentfulPortfolio {
-      nodes {
-        ...PortfolioCard
+  query PostsQuery{
+    posts: allContentfulPost{
+      nodes{
+        id
+        title
+        image{
+          file{
+            url
+          }
+        }
       }
     }
   }
