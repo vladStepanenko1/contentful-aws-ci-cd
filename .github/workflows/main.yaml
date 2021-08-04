@@ -13,7 +13,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd alpacked-test-assignment-master
-          npm instal
+          npm install
 
       - name: Build project
         run: |
