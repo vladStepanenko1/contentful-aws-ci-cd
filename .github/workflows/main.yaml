@@ -19,6 +19,9 @@ jobs:
         run: |
           cd alpacked-test-assignment-master
           npm run build
+        env:
+          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID }}
+          CONTENTFUL_ACCESS_TOKEN: ${{ secrets.CONTENTFUL_ACCESS_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -30,4 +33,3 @@ jobs:
       - name: Upload files to S3 bucket
         run: |
           aws s3 sync alpacked-test-assignment-master/public/ s3://${{secrets.S3_BUCKET_NAME}} --delete
-      
