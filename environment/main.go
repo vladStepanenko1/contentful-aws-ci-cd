@@ -14,7 +14,6 @@ func main() {
 		// Create an AWS resource (S3 Bucket)
 		bucketResourceName := "contentful-app-bucket"
 		bucket, err := s3.NewBucket(ctx, bucketResourceName, &s3.BucketArgs{
-			Acl:    pulumi.String("private"),
 			Bucket: pulumi.String(bucketResourceName),
 		})
 		if err != nil {
@@ -22,8 +21,9 @@ func main() {
 		}
 
 		// Bucket public access block
-		_, err = s3.NewBucketPublicAccessBlock(ctx, "bucket-block-public-access", &s3.BucketPublicAccessBlockArgs{
-			Bucket:                pulumi.String(bucketResourceName),
+		bucketBlockPublicAccessResourceName := "bucket-block-public-access"
+		_, err = s3.NewBucketPublicAccessBlock(ctx, bucketBlockPublicAccessResourceName, &s3.BucketPublicAccessBlockArgs{
+			Bucket:                bucket.ID(),
 			BlockPublicAcls:       pulumi.Bool(true),
 			BlockPublicPolicy:     pulumi.Bool(true),
 			IgnorePublicAcls:      pulumi.Bool(true),
@@ -82,6 +82,8 @@ func main() {
 			ViewerCertificate: cloudfront.DistributionViewerCertificateArgs{
 				CloudfrontDefaultCertificate: pulumi.Bool(true),
 			},
+			// TODO set DefaultRootObject
+			DefaultRootObject: pulumi.String("index.html"),
 		})
 		if err != nil {
 			return err
@@ -89,13 +91,13 @@ func main() {
 
 		// Create bucket policy which provides access to bucket objects via CloudFront
 		bucketPolicyName := "PolicyForCloudFrontPrivateContent"
-
-		_, err = s3.NewBucketPolicy(ctx, bucketPolicyName, &s3.BucketPolicyArgs{
+		bucketPolicy, err := s3.NewBucketPolicy(ctx, bucketPolicyName, &s3.BucketPolicyArgs{
 			Bucket: bucket.ID(),
-			Policy: pulumi.All(bucket.Arn, originAccessIdentity.ID().ToStringOutput()).ApplyT(func(args []interface{}) (string, error) {
+			Policy: pulumi.All(bucket.Arn, originAccessIdentity.IamArn).ApplyT(func(args []interface{}) (string, error) {
 				bucketPolicyJson, err := PublicReadPolicyForBucket(bucketPolicyName, args[0].(string), args[1].(string))
 				if err != nil {
-					return "", err
+					emptyString := ""
+					return emptyString, err
 				}
 				return string(bucketPolicyJson), nil
 			}).(pulumi.StringOutput),
@@ -107,16 +109,17 @@ func main() {
 		// Export the name of the bucket
 		ctx.Export("bucketName", bucket.ID())
 
-		// Export the CloudFront distribution ID
-		ctx.Export("cloudFrontDistributionId", cloudFrontDistribution.ID())
-
 		// Export CloudFront domain name
 		ctx.Export("cloudFrontDistributionDomainName", cloudFrontDistribution.DomainName)
+
+		// Export bucket policy
+		ctx.Export("bucketPolicy", bucketPolicy.Policy)
+
 		return nil
 	})
 }
 
-func PublicReadPolicyForBucket(bucketPolicyName string, bucketArn string, originAccessIdentityId string) ([]byte, error) {
+func PublicReadPolicyForBucket(bucketPolicyName string, bucketArn string, originAccessIdentityIamArn string) ([]byte, error) {
 	jsonToReturn, err := json.Marshal(map[string]interface{}{
 		"Version": "2012-10-17",
 		"Id":      bucketPolicyName,
@@ -124,7 +127,7 @@ func PublicReadPolicyForBucket(bucketPolicyName string, bucketArn string, origin
 			{
 				"Effect": "Allow",
 				"Principal": map[string]interface{}{
-					"AWS": fmt.Sprintf("arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity %s", originAccessIdentityId),
+					"AWS": originAccessIdentityIamArn,
 				},
 				"Action":   "s3:GetObject",
 				"Resource": fmt.Sprintf("%s/*", bucketArn),
@@ -134,6 +137,5 @@ func PublicReadPolicyForBucket(bucketPolicyName string, bucketArn string, origin
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(jsonToReturn))
 	return jsonToReturn, nil
 }
