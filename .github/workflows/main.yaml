@@ -1,7 +1,7 @@
 name: Build and deploy static files to AWS S3 bucket
 on:
   push:
-    branches: [ develop ]
+    branches: [ main ]
   workflow_dispatch:
 jobs:
   build:
